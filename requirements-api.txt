@@ -3,6 +3,7 @@
 diffusers==0.31.0
 transformers==4.46.2
 accelerate==1.1.1
+peft==0.13.2          # required by diffusers for load_lora_weights / set_adapters
 safetensors==0.4.5
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
