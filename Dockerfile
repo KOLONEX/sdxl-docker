@@ -3,6 +3,7 @@ FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/opt/hf \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
     OUTPUT_DIR=/outputs \
     LORA_DIR=/models/loras \
     MODEL_DIR=/opt/models/sdxl-base \

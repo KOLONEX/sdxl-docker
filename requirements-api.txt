@@ -10,3 +10,4 @@ python-multipart==0.0.9
 pydantic==2.9.2
 pillow
 rembg==2.0.59
+hf_transfer==0.1.8
