@@ -1,135 +1,373 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SDXL — KOLONEX</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SDXL · Prompt → Imagen</title>
 <style>
-  body{font-family:system-ui,sans-serif;margin:0;background:#0f1020;color:#e8e8f0}
-  header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:#17182e}
-  main{display:grid;grid-template-columns:360px 1fr;gap:16px;padding:16px}
-  label{display:block;margin:8px 0 4px;font-size:13px}
-  input,select,textarea,button{width:100%;box-sizing:border-box;padding:6px;background:#22243f;color:#e8e8f0;border:1px solid #33355a;border-radius:6px}
-  #gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-  #gallery img{width:100%;border-radius:8px}
-  .row{display:flex;gap:8px}
+  :root { --bg:#0e0f13; --panel:#1a1c22; --accent:#5b8cff; --text:#e6e8ee; --muted:#8a8f9c; --border:#2a2d36; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; }
+  header { padding:12px 18px; font-weight:600; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .hright { display:flex; align-items:center; gap:10px; }
+  #kolonex { color:var(--accent); font-size:12px; font-weight:600; border:1px solid var(--border); border-radius:6px; padding:4px 9px; }
+  #kolonex:hover { border-color:var(--accent); }
+  #lang { display:flex; gap:4px; }
+  #lang button { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:4px 9px; font-size:12px; font-weight:600; cursor:pointer; }
+  #lang button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  main { flex:1; display:flex; min-height:0; }
+  #sidebar { width:320px; padding:16px; border-right:1px solid var(--border); overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
+  #mode { display:flex; gap:4px; }
+  #mode button { flex:1; background:var(--panel); border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:8px; font-size:13px; font-weight:600; cursor:pointer; }
+  #mode button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #drop { border:2px dashed #3a3e49; border-radius:10px; padding:18px; text-align:center; color:var(--muted); cursor:pointer; }
+  #drop.drag { border-color:var(--accent); color:var(--text); }
+  #preview { max-width:100%; border-radius:8px; display:none; margin-top:8px; }
+  label { font-size:13px; color:var(--muted); display:flex; flex-direction:column; gap:4px; }
+  .lblrow { display:flex; align-items:center; gap:6px; }
+  .row { display:flex; gap:10px; }
+  .row > label { flex:1; }
+  .check { flex-direction:row; align-items:center; gap:8px; cursor:pointer; }
+  .check input { width:auto; }
+  .help { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+          border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:10px;
+          font-weight:700; cursor:help; position:relative; flex:none; user-select:none; }
+  .help:hover { border-color:var(--accent); color:var(--accent); }
+  .help .tip { display:none; position:absolute; top:140%; left:0; width:230px; background:#23262f;
+               border:1px solid var(--border); border-radius:8px; padding:9px 11px; font-size:11px;
+               font-weight:400; color:var(--text); line-height:1.45; z-index:20; text-align:left;
+               white-space:normal; box-shadow:0 8px 24px rgba(0,0,0,.55); }
+  .help:hover .tip, .help:focus .tip { display:block; }
+  .help .tip b { color:var(--accent); font-weight:600; }
+  input, select, textarea { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px; font-family:inherit; width:100%; }
+  textarea { resize:vertical; }
+  select[multiple] { padding:4px; }
+  button#generate { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:11px; font-weight:600; cursor:pointer; }
+  button#generate:disabled { opacity:.5; cursor:not-allowed; }
+  #content { flex:1; position:relative; min-width:0; overflow-y:auto; padding:16px; }
+  #gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
+  figure { margin:0; background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  figure img { width:100%; display:block; }
+  figcaption { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; font-size:12px; color:var(--muted); }
+  figcaption a { color:var(--accent); }
+  #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:20px; }
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(10,11,15,.6); z-index:10; }
+  .spinner { width:42px; height:42px; border:4px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #status { font-size:12px; color:var(--muted); min-height:16px; }
+  #status.err { color:#ff6b6b; }
+  a { text-decoration:none; }
 </style>
 </head>
 <body>
 <header>
-  <strong>SDXL · KOLONEX</strong>
-  <select id="lang"><option value="es">ES</option><option value="en">EN</option></select>
+  <span>SDXL · Prompt → <span data-i18n="hImg">Imagen</span></span>
+  <span class="hright">
+    <a id="kolonex" href="https://kolonex.net" target="_blank" rel="noopener" data-i18n="kolonex">Parte de KOLONEX</a>
+    <span id="lang"><button data-lang="es">ES</button><button data-lang="en">EN</button></span>
+  </span>
 </header>
 <main>
-  <section>
-    <label data-i18n="mode">Modo</label>
-    <select id="mode"><option value="txt2img">txt2img</option><option value="img2img">img2img</option></select>
-
-    <div id="img2img-only" style="display:none">
-      <label data-i18n="initimg">Imagen de entrada</label>
-      <input type="file" id="initimg" accept="image/*">
-      <label data-i18n="denoise">Denoise</label>
-      <input type="number" id="denoise" value="0.6" min="0" max="1" step="0.05">
+  <aside id="sidebar">
+    <div id="mode">
+      <button data-mode="txt2img" class="active" data-i18n="modeTxt">txt2img</button>
+      <button data-mode="img2img" data-i18n="modeImg">img2img</button>
     </div>
 
-    <label data-i18n="prompt">Prompt</label>
-    <textarea id="prompt" rows="3" placeholder="a sci-fi spaceship, concept art, single object, plain background"></textarea>
-    <label data-i18n="negative">Negative</label>
-    <textarea id="negative" rows="2"></textarea>
+    <div id="img2img-box" style="display:none">
+      <div id="drop" data-i18n-html="drop">Arrastrá una imagen acá<br>o hacé click para elegir</div>
+      <input id="file" type="file" accept="image/*" hidden>
+      <img id="preview" alt="preview">
+      <label style="margin-top:10px">
+        <span class="lblrow"><span data-i18n="denoiseLabel">Denoise</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="denoiseTip"></span></span>
+        </span>
+        <input id="denoise" type="number" value="0.6" min="0" max="1" step="0.05">
+      </label>
+    </div>
+
+    <label>
+      <span data-i18n="promptLabel">Prompt</span>
+      <textarea id="prompt" rows="3" placeholder="a sci-fi cargo spaceship, concept art, single object, plain background"></textarea>
+    </label>
+    <label>
+      <span data-i18n="negativeLabel">Negative prompt</span>
+      <textarea id="negative" rows="2" placeholder="blurry, text, watermark, multiple objects"></textarea>
+    </label>
 
     <div class="row">
-      <div><label data-i18n="steps">Steps</label><input type="number" id="steps" value="30"></div>
-      <div><label data-i18n="cfg">CFG</label><input type="number" id="cfg" value="7" step="0.5"></div>
+      <label>
+        <span class="lblrow"><span data-i18n="stepsLabel">Steps</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="stepsTip"></span></span>
+        </span>
+        <input id="steps" type="number" value="30" min="1" max="150">
+      </label>
+      <label>
+        <span class="lblrow"><span data-i18n="cfgLabel">CFG</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="cfgTip"></span></span>
+        </span>
+        <input id="cfg" type="number" value="7" min="0" max="30" step="0.5">
+      </label>
     </div>
-    <label data-i18n="sampler">Sampler</label>
-    <select id="sampler">
-      <option>dpmpp_2m</option><option>dpmpp_sde</option><option>euler</option>
-      <option>euler_a</option><option>ddim</option>
-    </select>
+
+    <label>
+      <span class="lblrow"><span data-i18n="samplerLabel">Sampler</span>
+        <span class="help" tabindex="0">?<span class="tip" data-i18n-html="samplerTip"></span></span>
+      </span>
+      <select id="sampler">
+        <option value="dpmpp_2m" selected>DPM++ 2M</option>
+        <option value="dpmpp_sde">DPM++ SDE</option>
+        <option value="euler">Euler</option>
+        <option value="euler_a">Euler a</option>
+        <option value="ddim">DDIM</option>
+      </select>
+    </label>
+
+    <div class="row" id="size-row">
+      <label>
+        <span class="lblrow"><span data-i18n="widthLabel">Ancho</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="sizeTip"></span></span>
+        </span>
+        <input id="width" type="number" value="1024" min="512" max="2048" step="8">
+      </label>
+      <label>
+        <span data-i18n="heightLabel">Alto</span>
+        <input id="height" type="number" value="1024" min="512" max="2048" step="8">
+      </label>
+    </div>
+
     <div class="row">
-      <div><label data-i18n="width">Width</label><input type="number" id="width" value="1024" step="8"></div>
-      <div><label data-i18n="height">Height</label><input type="number" id="height" value="1024" step="8"></div>
+      <label>
+        <span class="lblrow"><span data-i18n="seedLabel">Seed (0 = aleatorio)</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="seedTip"></span></span>
+        </span>
+        <input id="seed" type="number" value="0" min="0">
+      </label>
+      <label>
+        <span class="lblrow"><span data-i18n="batchLabel">Lote</span>
+          <span class="help" tabindex="0">?<span class="tip" data-i18n-html="batchTip"></span></span>
+        </span>
+        <input id="batch" type="number" value="1" min="1" max="4">
+      </label>
     </div>
-    <div class="row">
-      <div><label data-i18n="seed">Seed</label><input type="number" id="seed" value="0"></div>
-      <div><label data-i18n="batch">Batch</label><input type="number" id="batch" value="1" min="1" max="4"></div>
-    </div>
 
-    <label data-i18n="loras">LoRAs</label>
-    <select id="loras" multiple size="4"></select>
-    <label data-i18n="loraweight">LoRA weight</label>
-    <input type="number" id="loraweight" value="1.0" step="0.1" min="-2" max="2">
+    <label>
+      <span class="lblrow"><span data-i18n="lorasLabel">LoRAs</span>
+        <span class="help" tabindex="0">?<span class="tip" data-i18n-html="lorasTip"></span></span>
+      </span>
+      <select id="loras" multiple size="4"></select>
+    </label>
+    <label>
+      <span data-i18n="loraWeightLabel">Peso LoRA</span>
+      <input id="loraweight" type="number" value="1.0" min="-2" max="2" step="0.1">
+    </label>
 
-    <label><input type="checkbox" id="use_refiner" checked style="width:auto"> <span data-i18n="refiner">Refiner</span></label>
-    <label data-i18n="refiner_switch">Refiner switch</label>
-    <input type="number" id="refiner_switch" value="0.8" min="0" max="1" step="0.05">
-    <label><input type="checkbox" id="remove_background" style="width:auto"> <span data-i18n="rembg">Quitar fondo</span></label>
+    <label class="check">
+      <input id="use_refiner" type="checkbox" checked>
+      <span class="lblrow"><span data-i18n="refinerLabel">Refiner</span>
+        <span class="help" tabindex="0">?<span class="tip" data-i18n-html="refinerTip"></span></span>
+      </span>
+    </label>
+    <label>
+      <span data-i18n="refinerSwitchLabel">Refiner switch</span>
+      <input id="refiner_switch" type="number" value="0.8" min="0" max="1" step="0.05">
+    </label>
+    <label class="check">
+      <input id="remove_background" type="checkbox">
+      <span class="lblrow"><span data-i18n="rembgLabel">Quitar fondo</span>
+        <span class="help" tabindex="0">?<span class="tip" data-i18n-html="rembgTip"></span></span>
+      </span>
+    </label>
 
-    <button id="go" data-i18n="generate">Generar</button>
-    <p id="status"></p>
+    <button id="generate" data-i18n="generate">Generar</button>
+    <div id="status"></div>
+  </aside>
+
+  <section id="content">
+    <div id="placeholder" data-i18n="placeholder">Los resultados aparecen acá</div>
+    <div id="gallery"></div>
+    <div id="overlay"><div class="spinner"></div><div data-i18n="generating">Generando…</div></div>
   </section>
-  <section><div id="gallery"></div></section>
 </main>
+
 <script>
-const I18N = {
-  es:{mode:"Modo",initimg:"Imagen de entrada",denoise:"Denoise",prompt:"Prompt",negative:"Negativo",
-      steps:"Pasos",cfg:"CFG",sampler:"Sampler",width:"Ancho",height:"Alto",seed:"Semilla",batch:"Lote",
-      loras:"LoRAs",loraweight:"Peso LoRA",refiner:"Refiner",refiner_switch:"Refiner switch",
-      rembg:"Quitar fondo",generate:"Generar"},
-  en:{mode:"Mode",initimg:"Init image",denoise:"Denoise",prompt:"Prompt",negative:"Negative",
-      steps:"Steps",cfg:"CFG",sampler:"Sampler",width:"Width",height:"Height",seed:"Seed",batch:"Batch",
-      loras:"LoRAs",loraweight:"LoRA weight",refiner:"Refiner",refiner_switch:"Refiner switch",
-      rembg:"Remove background",generate:"Generate"}
-};
+// ---- state ----
+let mode = 'txt2img';
+let selectedFile = null;
 const $ = id => document.getElementById(id);
-function applyLang(l){ document.documentElement.lang=l;
-  document.querySelectorAll("[data-i18n]").forEach(e=>{const k=e.getAttribute("data-i18n"); if(I18N[l][k]) e.textContent=I18N[l][k];}); }
-$("lang").onchange = e => applyLang(e.target.value);
 
-$("mode").onchange = e => { $("img2img-only").style.display = e.target.value==="img2img" ? "block":"none"; };
+// ---- mode toggle ----
+document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('active', x === b));
+  $('img2img-box').style.display = mode === 'img2img' ? 'block' : 'none';
+  $('size-row').style.display = mode === 'img2img' ? 'none' : 'flex';
+}));
 
-async function loadLoras(){
+// ---- init image (img2img) ----
+const drop = $('drop'), fileInput = $('file'), preview = $('preview');
+function setFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  selectedFile = f;
+  preview.src = URL.createObjectURL(f);
+  preview.style.display = 'block';
+}
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => setFile(e.target.files[0]));
+['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+drop.addEventListener('drop', e => setFile(e.dataTransfer.files[0]));
+
+// ---- LoRA list (XSS-safe: option text via textContent) ----
+async function loadLoras() {
   try {
-    const r = await fetch("/loras"); const {loras} = await r.json();
-    const sel = $("loras"); sel.innerHTML = "";
-    loras.forEach(l=>{ const o=document.createElement("option"); o.value=l.name; o.textContent=l.name; sel.appendChild(o); });
-  } catch(e){ console.warn("loras:", e); }
-}
-function selectedLoras(){
-  const w = parseFloat($("loraweight").value);
-  return [...$("loras").selectedOptions].map(o=>({name:o.value, weight:w}));
-}
-function commonBody(){
-  return { prompt:$("prompt").value, negative_prompt:$("negative").value,
-    steps:+$("steps").value, cfg:+$("cfg").value, sampler:$("sampler").value,
-    seed:+$("seed").value, batch:+$("batch").value, loras:selectedLoras(),
-    use_refiner:$("use_refiner").checked, refiner_switch:+$("refiner_switch").value,
-    remove_background:$("remove_background").checked };
-}
-function show(images){ $("gallery").innerHTML = images.map(i=>
-  `<figure><img src="${i.url}"><figcaption><a href="${i.url}" download>seed ${i.seed}</a></figcaption></figure>`).join(""); }
-
-$("go").onclick = async () => {
-  $("status").textContent = "..."; $("go").disabled=true;
-  try{
-    let res;
-    if($("mode").value==="txt2img"){
-      const body = {...commonBody(), width:+$("width").value, height:+$("height").value};
-      res = await fetch("/txt2img",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    } else {
-      if(!$("initimg").files[0]){ $("status").textContent="Select an image / Seleccioná una imagen"; $("go").disabled=false; return; }
-      const fd = new FormData(); const b = commonBody();
-      Object.entries(b).forEach(([k,v])=>{ if(k!=="loras") fd.append(k, v); });
-      // loras go one-by-one is not supported by multipart here; send first selected for simplicity
-      fd.append("denoise", $("denoise").value);
-      fd.append("file", $("initimg").files[0]);
-      res = await fetch("/img2img",{method:"POST",body:fd});
+    const r = await fetch('/loras');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const { loras } = await r.json();
+    const sel = $('loras');
+    sel.innerHTML = '';
+    for (const l of loras) {
+      const o = document.createElement('option');
+      o.value = l.name;
+      o.textContent = l.name;
+      sel.appendChild(o);
     }
-    if(!res.ok){ $("status").textContent = "Error: "+res.status+" "+(await res.text()); return; }
-    const data = await res.json(); show(data.images);
-    $("status").textContent = data.count+" ✓ ("+data.duration_ms+" ms)";
-  } finally { $("go").disabled=false; }
+  } catch (e) { console.warn('loras:', e); }
+}
+function selectedLoras() {
+  const w = parseFloat($('loraweight').value);
+  return [...$('loras').selectedOptions].map(o => ({ name: o.value, weight: w }));
+}
+
+// ---- gallery ----
+function showImages(images) {
+  const g = $('gallery');
+  g.innerHTML = '';
+  for (const im of images) {
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = im.url;
+    const cap = document.createElement('figcaption');
+    const seed = document.createElement('span');
+    seed.textContent = 'seed ' + im.seed;
+    const dl = document.createElement('a');
+    dl.href = im.url; dl.download = im.job_id + '.png'; dl.textContent = '↓ PNG';
+    cap.append(seed, dl);
+    fig.append(img, cap);
+    g.appendChild(fig);
+  }
+  $('placeholder').style.display = images.length ? 'none' : 'flex';
+}
+
+// ---- generate ----
+function commonBody() {
+  return {
+    prompt: $('prompt').value,
+    negative_prompt: $('negative').value,
+    steps: +$('steps').value,
+    cfg: +$('cfg').value,
+    sampler: $('sampler').value,
+    seed: +$('seed').value,
+    batch: +$('batch').value,
+    loras: selectedLoras(),
+    use_refiner: $('use_refiner').checked,
+    refiner_switch: +$('refiner_switch').value,
+    remove_background: $('remove_background').checked,
+  };
+}
+function setStatus(msg, isErr) { const s = $('status'); s.textContent = msg; s.classList.toggle('err', !!isErr); }
+$('generate').addEventListener('click', async () => {
+  if (!$('prompt').value.trim()) { setStatus(t('errPrompt'), true); return; }
+  const overlay = $('overlay'), btn = $('generate');
+  let res;
+  overlay.style.display = 'flex'; btn.disabled = true; setStatus('');
+  try {
+    if (mode === 'txt2img') {
+      const body = { ...commonBody(), width: +$('width').value, height: +$('height').value };
+      res = await fetch('/txt2img', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } else {
+      if (!selectedFile) { setStatus(t('errFile'), true); return; }
+      const fd = new FormData(), b = commonBody();
+      Object.entries(b).forEach(([k, v]) => { if (k !== 'loras') fd.append(k, v); });
+      fd.append('denoise', $('denoise').value);
+      fd.append('file', selectedFile);
+      res = await fetch('/img2img', { method: 'POST', body: fd });
+    }
+    if (!res.ok) { setStatus('Error ' + res.status + ': ' + (await res.text()), true); return; }
+    const data = await res.json();
+    showImages(data.images);
+    setStatus(data.count + ' ✓ · ' + (data.duration_ms / 1000).toFixed(1) + ' s');
+  } catch (err) {
+    setStatus(t('errGen') + ' ' + err.message, true);
+  } finally {
+    overlay.style.display = 'none'; btn.disabled = false;
+  }
+});
+
+// ---- i18n (ES / EN) ----
+const I18N = {
+  es: {
+    hImg: 'Imagen', kolonex: 'Parte de KOLONEX',
+    modeTxt: 'txt2img', modeImg: 'img2img',
+    drop: 'Arrastrá una imagen acá<br>o hacé click para elegir',
+    denoiseLabel: 'Denoise', promptLabel: 'Prompt', negativeLabel: 'Negative prompt',
+    stepsLabel: 'Steps', cfgLabel: 'CFG', samplerLabel: 'Sampler',
+    widthLabel: 'Ancho', heightLabel: 'Alto', seedLabel: 'Seed (0 = aleatorio)', batchLabel: 'Lote',
+    lorasLabel: 'LoRAs', loraWeightLabel: 'Peso LoRA',
+    refinerLabel: 'Refiner', refinerSwitchLabel: 'Refiner switch', rembgLabel: 'Quitar fondo',
+    generate: 'Generar', generating: 'Generando…', placeholder: 'Los resultados aparecen acá',
+    denoiseTip: '<b>Fuerza de img2img (0–1).</b> Cuánto se aleja del original. <b>Bajo</b> (0.3) = retoque sutil, conserva la composición. <b>Alto</b> (0.7+) = reinterpreta fuerte, copia estilo. 0.5 es un buen punto medio.',
+    stepsTip: '<b>Pasos de denoising.</b> Más pasos = más refinado pero más lento. <b>25–30</b> suele alcanzar; por encima de ~40 el retorno es marginal.',
+    cfgTip: '<b>Guidance scale (CFG).</b> Cuánto obedece al prompt. Bajo = más libre/creativo; alto = más literal pero puede saturar. <b>5–8</b> es el rango típico en SDXL.',
+    samplerTip: '<b>Sampler / scheduler.</b> Algoritmo de denoising. <b>DPM++ 2M</b> es rápido y estable; <b>DPM++ SDE</b> da más variedad; Euler a introduce ruido extra; DDIM es determinista.',
+    sizeTip: '<b>Resolución (px).</b> SDXL está entrenado en ~1024². Múltiplos de 8. Alejarse mucho de 1024² puede duplicar sujetos o deformar. En img2img se usa el tamaño de la imagen de entrada.',
+    seedTip: '<b>Semilla.</b> El mismo prompt + la misma seed produce siempre la misma imagen (reproducible). <b>0</b> = aleatoria (la seed usada se devuelve por imagen).',
+    batchTip: '<b>Cantidad de imágenes.</b> Genera N variantes con seeds consecutivas en una sola request. Máximo 4 (configurable con MAX_BATCH).',
+    lorasTip: '<b>LoRAs.</b> Adaptadores de estilo. Aparecen los .safetensors que pongas en la carpeta montada /models/loras. Ctrl/Cmd+click para elegir varios; el peso se aplica a los seleccionados.',
+    refinerTip: '<b>Refiner de SDXL.</b> Segundo modelo que retoca los detalles finos en los últimos pasos. Mejora la calidad de concept art; desactivalo para velocidad o si la imagen va a TRELLIS. Solo aplica en txt2img.',
+    rembgTip: '<b>Quitar fondo.</b> Recorta el sujeto sobre fondo transparente (rembg). Deja la imagen lista para alimentar TRELLIS (imagen→3D).',
+    errPrompt: 'Escribí un prompt.', errFile: 'Elegí una imagen de entrada.',
+    errGen: 'Error generando:',
+  },
+  en: {
+    hImg: 'Image', kolonex: 'Part of KOLONEX',
+    modeTxt: 'txt2img', modeImg: 'img2img',
+    drop: 'Drag an image here<br>or click to choose',
+    denoiseLabel: 'Denoise', promptLabel: 'Prompt', negativeLabel: 'Negative prompt',
+    stepsLabel: 'Steps', cfgLabel: 'CFG', samplerLabel: 'Sampler',
+    widthLabel: 'Width', heightLabel: 'Height', seedLabel: 'Seed (0 = random)', batchLabel: 'Batch',
+    lorasLabel: 'LoRAs', loraWeightLabel: 'LoRA weight',
+    refinerLabel: 'Refiner', refinerSwitchLabel: 'Refiner switch', rembgLabel: 'Remove background',
+    generate: 'Generate', generating: 'Generating…', placeholder: 'Results show up here',
+    denoiseTip: '<b>img2img strength (0–1).</b> How far it drifts from the input. <b>Low</b> (0.3) = subtle touch-up, keeps composition. <b>High</b> (0.7+) = heavy reinterpretation, style transfer. 0.5 is a good middle ground.',
+    stepsTip: '<b>Denoising steps.</b> More steps = more refined but slower. <b>25–30</b> is usually enough; beyond ~40 returns are marginal.',
+    cfgTip: '<b>Guidance scale (CFG).</b> How strictly it follows the prompt. Low = freer/creative; high = more literal but can oversaturate. <b>5–8</b> is the typical SDXL range.',
+    samplerTip: '<b>Sampler / scheduler.</b> Denoising algorithm. <b>DPM++ 2M</b> is fast and stable; <b>DPM++ SDE</b> adds variety; Euler a injects extra noise; DDIM is deterministic.',
+    sizeTip: '<b>Resolution (px).</b> SDXL is trained around 1024². Multiples of 8. Straying far from 1024² can duplicate subjects or distort. img2img uses the input image size.',
+    seedTip: '<b>Seed.</b> The same prompt + the same seed always produces the same image (reproducible). <b>0</b> = random (the seed used is returned per image).',
+    batchTip: '<b>Image count.</b> Generates N variations with consecutive seeds in one request. Max 4 (set via MAX_BATCH).',
+    lorasTip: '<b>LoRAs.</b> Style adapters. The .safetensors you drop into the mounted /models/loras folder appear here. Ctrl/Cmd+click to pick several; the weight applies to the selected ones.',
+    refinerTip: '<b>SDXL refiner.</b> A second model that polishes fine detail in the final steps. Improves concept-art quality; turn it off for speed or when the image feeds TRELLIS. Applies to txt2img only.',
+    rembgTip: '<b>Remove background.</b> Cuts the subject out onto a transparent background (rembg). Leaves the image ready to feed TRELLIS (image→3D).',
+    errPrompt: 'Write a prompt.', errFile: 'Choose an input image.',
+    errGen: 'Error generating:',
+  },
 };
-applyLang("es"); loadLoras();
+let lang = 'es';
+function t(k) { return (I18N[lang] && I18N[lang][k]) || I18N.es[k] || k; }
+function applyLang(l) {
+  lang = I18N[l] ? l : 'es';
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+  document.querySelectorAll('#lang button').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  try { localStorage.setItem('sdxl_lang', lang); } catch (e) {}
+}
+document.querySelectorAll('#lang button').forEach(b => b.addEventListener('click', () => applyLang(b.dataset.lang)));
+let saved = null;
+try { saved = localStorage.getItem('sdxl_lang'); } catch (e) {}
+applyLang(saved || ((navigator.language || 'es').slice(0, 2) === 'en' ? 'en' : 'es'));
+loadLoras();
 </script>
 </body>
 </html>
