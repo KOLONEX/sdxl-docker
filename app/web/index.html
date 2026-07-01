@@ -44,11 +44,11 @@
   select[multiple] { padding:4px; }
   button#generate { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:11px; font-weight:600; cursor:pointer; }
   button#generate:disabled { opacity:.5; cursor:not-allowed; }
-  #content { flex:1; position:relative; min-width:0; overflow-y:auto; padding:16px; }
-  #gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px; }
-  figure { margin:0; background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-  figure img { width:100%; display:block; }
-  figcaption { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; font-size:12px; color:var(--muted); }
+  #content { flex:1; position:relative; min-width:0; overflow:hidden; padding:16px; }
+  #gallery { display:grid; gap:14px; width:100%; height:100%; }
+  figure { margin:0; background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; min-height:0; min-width:0; }
+  figure img { flex:1; min-height:0; width:100%; height:100%; object-fit:contain; display:block; }
+  figcaption { flex:none; display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; font-size:12px; color:var(--muted); }
   figcaption .fc-acts { display:flex; gap:10px; }
   figcaption a, figcaption button.link { color:var(--accent); background:none; border:0; padding:0; font:inherit; cursor:pointer; }
   #placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; text-align:center; padding:20px; }
@@ -305,6 +305,12 @@ function selectedLoras() {
 // ---- gallery ----
 function showImages(images) {
   const g = $('gallery'); g.innerHTML = '';
+  // fill the central area with a grid sized to the image count (max 4)
+  const n = images.length;
+  const cols = n <= 1 ? 1 : 2;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  g.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+  g.style.gridTemplateRows = 'repeat(' + rows + ', 1fr)';
   for (const im of images) {
     const fig = document.createElement('figure');
     const img = document.createElement('img'); img.src = im.url;
