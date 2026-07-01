@@ -182,8 +182,8 @@ class SdxlBackend:
 
     def txt2img(self, params, seeds):
         self._apply_scheduler(self._base, params.sampler)
-        self._apply_loras(params)
         try:
+            self._apply_loras(params)
             gens = self._generators(seeds)
             use_ref = params.use_refiner
             common = dict(prompt=[params.prompt] * len(seeds),
@@ -211,8 +211,8 @@ class SdxlBackend:
         # Reuse the base weights as an img2img pipeline (shares components, no reload).
         img_pipe = StableDiffusionXLImg2ImgPipeline(**self._base.components)
         self._apply_scheduler(img_pipe, params.sampler)
-        self._apply_loras(params)
         try:
+            self._apply_loras(params)
             gens = self._generators(seeds)
             images = img_pipe(
                 prompt=[params.prompt] * len(seeds),
