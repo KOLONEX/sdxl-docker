@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SDXL — KOLONEX</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#0f1020;color:#e8e8f0}
+  header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:#17182e}
+  main{display:grid;grid-template-columns:360px 1fr;gap:16px;padding:16px}
+  label{display:block;margin:8px 0 4px;font-size:13px}
+  input,select,textarea,button{width:100%;box-sizing:border-box;padding:6px;background:#22243f;color:#e8e8f0;border:1px solid #33355a;border-radius:6px}
+  #gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  #gallery img{width:100%;border-radius:8px}
+  .row{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<header>
+  <strong>SDXL · KOLONEX</strong>
+  <select id="lang"><option value="es">ES</option><option value="en">EN</option></select>
+</header>
+<main>
+  <section>
+    <label data-i18n="mode">Modo</label>
+    <select id="mode"><option value="txt2img">txt2img</option><option value="img2img">img2img</option></select>
+
+    <div id="img2img-only" style="display:none">
+      <label data-i18n="initimg">Imagen de entrada</label>
+      <input type="file" id="initimg" accept="image/*">
+      <label data-i18n="denoise">Denoise</label>
+      <input type="number" id="denoise" value="0.6" min="0" max="1" step="0.05">
+    </div>
+
+    <label data-i18n="prompt">Prompt</label>
+    <textarea id="prompt" rows="3" placeholder="a sci-fi spaceship, concept art, single object, plain background"></textarea>
+    <label data-i18n="negative">Negative</label>
+    <textarea id="negative" rows="2"></textarea>
+
+    <div class="row">
+      <div><label data-i18n="steps">Steps</label><input type="number" id="steps" value="30"></div>
+      <div><label data-i18n="cfg">CFG</label><input type="number" id="cfg" value="7" step="0.5"></div>
+    </div>
+    <label data-i18n="sampler">Sampler</label>
+    <select id="sampler">
+      <option>dpmpp_2m</option><option>dpmpp_sde</option><option>euler</option>
+      <option>euler_a</option><option>ddim</option>
+    </select>
+    <div class="row">
+      <div><label data-i18n="width">Width</label><input type="number" id="width" value="1024" step="8"></div>
+      <div><label data-i18n="height">Height</label><input type="number" id="height" value="1024" step="8"></div>
+    </div>
+    <div class="row">
+      <div><label data-i18n="seed">Seed</label><input type="number" id="seed" value="0"></div>
+      <div><label data-i18n="batch">Batch</label><input type="number" id="batch" value="1" min="1" max="4"></div>
+    </div>
+
+    <label data-i18n="loras">LoRAs</label>
+    <select id="loras" multiple size="4"></select>
+    <label data-i18n="loraweight">LoRA weight</label>
+    <input type="number" id="loraweight" value="1.0" step="0.1" min="-2" max="2">
+
+    <label><input type="checkbox" id="use_refiner" checked style="width:auto"> <span data-i18n="refiner">Refiner</span></label>
+    <label data-i18n="refiner_switch">Refiner switch</label>
+    <input type="number" id="refiner_switch" value="0.8" min="0" max="1" step="0.05">
+    <label><input type="checkbox" id="remove_background" style="width:auto"> <span data-i18n="rembg">Quitar fondo</span></label>
+
+    <button id="go" data-i18n="generate">Generar</button>
+    <p id="status"></p>
+  </section>
+  <section><div id="gallery"></div></section>
+</main>
+<script>
+const I18N = {
+  es:{mode:"Modo",initimg:"Imagen de entrada",denoise:"Denoise",prompt:"Prompt",negative:"Negativo",
+      steps:"Pasos",cfg:"CFG",sampler:"Sampler",width:"Ancho",height:"Alto",seed:"Semilla",batch:"Lote",
+      loras:"LoRAs",loraweight:"Peso LoRA",refiner:"Refiner",refiner_switch:"Refiner switch",
+      rembg:"Quitar fondo",generate:"Generar"},
+  en:{mode:"Mode",initimg:"Init image",denoise:"Denoise",prompt:"Prompt",negative:"Negative",
+      steps:"Steps",cfg:"CFG",sampler:"Sampler",width:"Width",height:"Height",seed:"Seed",batch:"Batch",
+      loras:"LoRAs",loraweight:"LoRA weight",refiner:"Refiner",refiner_switch:"Refiner switch",
+      rembg:"Remove background",generate:"Generate"}
+};
+const $ = id => document.getElementById(id);
+function applyLang(l){ document.documentElement.lang=l;
+  document.querySelectorAll("[data-i18n]").forEach(e=>{const k=e.getAttribute("data-i18n"); if(I18N[l][k]) e.textContent=I18N[l][k];}); }
+$("lang").onchange = e => applyLang(e.target.value);
+
+$("mode").onchange = e => { $("img2img-only").style.display = e.target.value==="img2img" ? "block":"none"; };
+
+async function loadLoras(){
+  const r = await fetch("/loras"); const {loras} = await r.json();
+  $("loras").innerHTML = loras.map(l=>`<option value="${l.name}">${l.name}</option>`).join("");
+}
+function selectedLoras(){
+  const w = parseFloat($("loraweight").value);
+  return [...$("loras").selectedOptions].map(o=>({name:o.value, weight:w}));
+}
+function commonBody(){
+  return { prompt:$("prompt").value, negative_prompt:$("negative").value,
+    steps:+$("steps").value, cfg:+$("cfg").value, sampler:$("sampler").value,
+    seed:+$("seed").value, batch:+$("batch").value, loras:selectedLoras(),
+    use_refiner:$("use_refiner").checked, refiner_switch:+$("refiner_switch").value,
+    remove_background:$("remove_background").checked };
+}
+function show(images){ $("gallery").innerHTML = images.map(i=>
+  `<figure><img src="${i.url}"><figcaption><a href="${i.url}" download>seed ${i.seed}</a></figcaption></figure>`).join(""); }
+
+$("go").onclick = async () => {
+  $("status").textContent = "..."; $("go").disabled=true;
+  try{
+    let res;
+    if($("mode").value==="txt2img"){
+      const body = {...commonBody(), width:+$("width").value, height:+$("height").value};
+      res = await fetch("/txt2img",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    } else {
+      const fd = new FormData(); const b = commonBody();
+      Object.entries(b).forEach(([k,v])=>{ if(k!=="loras") fd.append(k, v); });
+      // loras go one-by-one is not supported by multipart here; send first selected for simplicity
+      fd.append("denoise", $("denoise").value);
+      fd.append("file", $("initimg").files[0]);
+      res = await fetch("/img2img",{method:"POST",body:fd});
+    }
+    if(!res.ok){ $("status").textContent = "Error: "+res.status+" "+(await res.text()); return; }
+    const data = await res.json(); show(data.images);
+    $("status").textContent = data.count+" ✓ ("+data.duration_ms+" ms)";
+  } finally { $("go").disabled=false; }
+};
+applyLang("es"); loadLoras();
+</script>
+</body>
+</html>
