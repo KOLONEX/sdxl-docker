@@ -1,12 +1,20 @@
 <div align="center">
 
-# SDXL API — Generate images from text or image on GPU
+# 🎨 SDXL API — Turn a prompt (or an image) into game-ready concept art
 
-**Text or image in → PNG(s) out.** A self-contained, GPU-powered Docker service that
-runs SDXL base + refiner + VAE offline, built to feed the asset pipeline of
-[**KOLONEX**](https://kolonex.net) — a real-time 4X space-empire strategy game.
+**Prompt in → images out.** A self-contained, GPU-powered Docker service running
+**Stable Diffusion XL** locally: an HTTP API (txt2img + img2img, hot-swappable LoRAs, optional
+refiner, one-click background removal) plus a bilingual web UI — built to feed the concept-art
+pipeline of [**KOLONEX**](https://kolonex.net), a real-time 4X space-empire strategy game.
 
+[![Powered by Stable Diffusion XL](https://img.shields.io/badge/powered%20by-Stable%20Diffusion%20XL-5b8cff)](https://stability.ai/stable-image)
+[![diffusers](https://img.shields.io/badge/🤗-diffusers-ffcc4d)](https://github.com/huggingface/diffusers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Play KOLONEX](https://img.shields.io/badge/🎮%20Play-KOLONEX.NET-6c3ce9)](https://kolonex.net)
+
+<img src="docs/sample.png" alt="SDXL sample — sci-fi cargo spaceship" width="420">
+
+*A real output from this service — `txt2img`, one prompt, ~9 s.*
 
 *English · [Español ↓](#-español)*
 
@@ -14,177 +22,155 @@ runs SDXL base + refiner + VAE offline, built to feed the asset pipeline of
 
 ---
 
-## Why this exists
+## 🎮 Why this exists
 
-[**KOLONEX**](https://kolonex.net) needs a constant stream of concept-art variants — ship skins,
-planetary structures, UI panels. SDXL's quality and speed make it the right tool for that job.
-This service wraps the **base + refiner ensemble** behind a clean HTTP API, with LoRA support for
-on-demand style adaptation, packaged as a **single Docker image that boots 100% offline**.
+[**KOLONEX**](https://kolonex.net) is a browser-based, real-time **4X space strategy** game — colonize
+procedurally-generated 3D planets, build an economy, research tech, forge alliances, wage fleet
+warfare. A universe like that runs on a constant stream of art: ships, structures, props, planetary
+buildings.
 
----
+This service is the **front of the asset pipeline**. Type a prompt (or drop a reference image) and
+**Stable Diffusion XL** produces concept art in seconds. Ask for a clean subject on a plain
+background — or flip on **background removal** — and the result drops straight into its sibling,
+[**TRELLIS**](https://github.com/KOLONEX/trellis-api), which turns that 2D image into a textured 3D
+`.glb`. **Idea → image → 3D model**, all self-hosted, all offline.
 
-## Highlights
-
-- **Text → PNG** and **Image → PNG** in one request, with the base + refiner ensemble.
-- **Fully self-contained & offline.** Base, refiner, and VAE weights are **baked into the image**. No internet needed at runtime.
-- **LoRA drop-in.** Mount a host folder to `/models/loras`; any `.safetensors` file placed there is auto-detected and selectable per request.
-- **GPU-selectable.** Pin to a specific GPU with `--gpus '"device=1"'` or `CUDA_VISIBLE_DEVICES`.
-- **Testable without a GPU.** The full API is covered by tests that run on any machine via `FakeBackend`.
-- **Hardened.** Path-traversal-safe job IDs, upload-size limits, blocking mutex so the GPU handles one job at a time.
+> **⭐ Star this if you build with it — and come [play KOLONEX](https://kolonex.net) (free, early access).**
 
 ---
 
-## Quick start
+## ✨ Highlights
+
+- 🖼️ **txt2img + img2img** — generate from a prompt, or reinterpret / restyle an input image (denoise-controlled).
+- 🎛️ **Hot-swappable LoRAs** — drop `.safetensors` into a mounted folder; they show up in the API and UI instantly, selectable per request with a weight. No rebuild.
+- ✨ **Optional SDXL refiner** — a second-stage polish for fine detail, toggleable per request (on by default, off for speed or for TRELLIS-bound images).
+- 🪄 **One-click background removal** (rembg) — outputs a clean subject, ready for image→3D.
+- 📦 **Baked & offline** — SDXL base + refiner + VAE are inside the image (fp16). Boots with no internet.
+- 🌐 **Bilingual web UI** (ES/EN) with inline help on every parameter — same look as the TRELLIS viewer.
+- 🎯 **Pin the GPU** — run it on a specific card (`--gpus '"device=1"'`) so it lives alongside TRELLIS on a second GPU.
+- 🧪 **Testable without a GPU** — the whole API is covered by tests that run on any laptop via a `FakeBackend`.
+
+---
+
+## 🚀 Quick start
 
 ```bash
-# build (downloads + bakes base + refiner + VAE: ~13 GB models, ~18-22 GB image)
+# build (bakes base + refiner + VAE — fp16, ~19 GB image)
 docker build -t sdxl-api ./sdxl-docker
 
-# run on GPU 1, LoRAs from a host folder, outputs persisted
-docker run --gpus '"device=1"' -p 5082:8000 \
+# run on GPU 1, with a LoRA folder + persistent outputs
+docker run --gpus '"device=1"' -p 5083:8000 \
   -v "$PWD/loras:/models/loras" -v sdxl-outputs:/outputs sdxl-api
-# → http://localhost:5082
+# → open http://localhost:5083
 ```
 
-Or with Docker Compose (GPU 1 pre-configured):
+Call the API directly:
 
 ```bash
-cd sdxl-docker
-docker compose up
-# → http://localhost:5082
+# txt2img → JSON with image URLs
+curl -s -X POST http://localhost:5083/txt2img -H 'Content-Type: application/json' \
+  -d '{"prompt":"a sci-fi cargo spaceship, concept art, plain background","batch":2}'
+
+# img2img → restyle a reference
+curl -s -X POST http://localhost:5083/img2img \
+  -F prompt="the same ship, battle-damaged" -F denoise=0.5 -F file=@ship.png
 ```
 
-**Requirements:** NVIDIA GPU with **≥16 GB VRAM**, CUDA 12.1-compatible drivers, and the
-[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+**Requirements:** NVIDIA GPU with **~20 GB free VRAM** (base + refiner resident), CUDA-12.1-compatible
+drivers, and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
 ---
 
-## API
+## 🧩 API
 
 | Method | Path | Description |
 |---|---|---|
-| `GET`    | `/`                | bilingual web frontend |
-| `GET`    | `/health`          | model status, GPU name, free VRAM |
-| `GET`    | `/loras`           | list available LoRAs |
-| `POST`   | `/txt2img`         | JSON body → `{images:[{job_id, url, seed}], duration_ms, count}` |
-| `POST`   | `/img2img`         | multipart `file` + form fields → same |
-| `POST`   | `/img2img/json`    | JSON body with `image_base64` → same |
-| `GET`    | `/files/{id}.png`  | download a generated image |
-| `DELETE` | `/files/{id}.png`  | delete a generated image |
+| `GET`    | `/`               | bilingual web UI |
+| `GET`    | `/health`         | model status + free VRAM |
+| `GET`    | `/loras`          | LoRAs discovered in the mounted folder |
+| `POST`   | `/txt2img`        | JSON params → 1..N images |
+| `POST`   | `/img2img`        | multipart `file` + params → 1..N images |
+| `POST`   | `/img2img/json`   | `{ image_base64, ... }` → same |
+| `GET`    | `/files/{id}.png` | download an image |
+| `DELETE` | `/files/{id}.png` | delete an image |
 
-### Parameters (txt2img / img2img)
-
-| Param | Type | Default | Notes |
-|---|---|---|---|
-| `prompt` | string | — | required, min 1 char |
-| `negative_prompt` | string | `""` | |
-| `steps` | int | `30` | 1–150 |
-| `cfg` | float | `7.0` | 0–30 |
-| `sampler` | string | `dpmpp_2m` | `euler`, `euler_a`, `dpmpp_2m`, `dpmpp_sde`, `ddim` |
-| `width` | int | `1024` | 512–2048, multiple of 8 (txt2img only) |
-| `height` | int | `1024` | 512–2048, multiple of 8 (txt2img only) |
-| `seed` | int | `0` | 0 = random |
-| `batch` | int | `1` | 1–8; requests above `MAX_BATCH` are rejected with HTTP 400 |
-| `loras` | list | `[]` | `[{"name": "my-lora", "weight": 0.8}]` |
-| `vae` | string | `fp16-fix` | VAE selection (txt2img only; not applied on img2img in v1) |
-| `use_refiner` | bool | `true` | run the refiner pass (txt2img only; not applied on img2img in v1) |
-| `refiner_switch` | float | `0.8` | base/refiner handoff (0–1) |
-| `remove_background` | bool | `false` | rembg post-process |
-| `inline` | bool | `false` | return PNG bytes directly (batch=1 only) |
-| `denoise` | float | `0.6` | img2img denoising strength (0–1) |
+**Params:** `prompt`, `negative_prompt`, `steps`, `cfg`, `sampler` (`dpmpp_2m`, `dpmpp_sde`, `euler`,
+`euler_a`, `ddim`), `width`, `height`, `seed` (0 = random), `batch` (≤ `MAX_BATCH`), `loras`
+(`[{name, weight}]`), `use_refiner`, `refiner_switch`, `remove_background`. `img2img` adds `denoise`.
 
 ---
 
-## LoRA drop-in workflow
+## 🏗️ How the image is built & 🧨 the build story
 
-1. Mount a host directory as `/models/loras`:
-   ```bash
-   docker run --gpus '"device=1"' -p 5082:8000 \
-     -v /path/to/my-loras:/models/loras -v sdxl-outputs:/outputs sdxl-api
-   ```
-2. Drop any `.safetensors` file into that folder — no restart needed; the registry rescans on each request.
-3. Check available LoRAs:
-   ```bash
-   curl http://localhost:5082/loras
-   # {"loras":[{"name":"my-style","filename":"my-style.safetensors"}]}
-   ```
-4. Use it in a generation:
-   ```bash
-   curl -s -X POST http://localhost:5082/txt2img \
-     -H 'Content-Type: application/json' \
-     -d '{"prompt":"a sci-fi cargo ship, concept art","loras":[{"name":"my-style","weight":0.8}]}'
-   ```
+The `Dockerfile` sits on `nvidia/cuda:12.1.1-cudnn8-runtime` — inference only, **no CUDA compilation**,
+so the build is plain `pip install` + a model bake. But baking ~13 GB of weights during `docker build`
+took some hardening:
+
+| The trap | The fix |
+|----------|---------|
+| **The HuggingFace download stalled** — 21 minutes of zero output at file 2/57, twice in a row. | Enable **`hf_transfer`** (Rust, parallel-chunked, resumable) and retry on transient errors — the download went from *hung* to *seconds*. |
+| **~Doubled data.** `snapshot_download` pulls the whole repo — full-precision **and** fp16 weights — but the pipelines load `variant="fp16"`. | Restrict base/refiner to `**/*.fp16.safetensors` + configs. Halved the download; the VAE (no fp16 suffix) is fetched whole. |
+| **Base image pull failed with `401`.** Stale Docker Hub creds were rejected for the anonymous `nvidia/cuda` pull. | `docker logout` before building. |
+| **Both base + refiner resident ≈ 20 GB VRAM** on a 24 GB card. | The refiner is an **optional per-request toggle** — off for speed or for TRELLIS-bound images. |
+
+The payoff: a reproducible image that **boots 100 % offline** and generates in seconds.
 
 ---
 
-## How the image is built
+## 🧠 Architecture
 
-The `Dockerfile` uses `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` as the base. The pipeline:
-
-1. **System deps** — Python 3.10, GL libs.
-2. **Torch first** — `torch==2.4.0 + torchvision==0.19.0` from the **cu121** index.
-3. **App runtime deps** — `diffusers`, `transformers`, `fastapi`, `uvicorn`, `rembg`, etc.
-4. **Bake models** — `scripts/download_models.py` downloads base + refiner + VAE via `huggingface_hub` into `/opt/models/`. The container needs no internet at runtime.
-5. **App code** — copied into `/app`.
-
-```bash
-docker build -t sdxl-api ./sdxl-docker
-```
-
----
-
-## Architecture
-
-SDXL is isolated behind a `Backend` protocol (`load()` / `txt2img()` / `img2img()`). A `PipelineManager`
-wraps any backend with an `asyncio.Lock` (one GPU job at a time), timing, and persistence. The API
-(`create_app` factory) and `storage.py` **know nothing about torch or CUDA**, so they are tested
-anywhere with a `FakeBackend`. Only `SdxlBackend` and `docker build` need a GPU.
+SDXL is isolated behind a small `Backend` protocol (`load` / `txt2img` / `img2img`). A
+`PipelineManager` wraps it with an `asyncio.Lock` (one GPU job at a time), timing, and PNG
+persistence. The API, storage, LoRA registry, and schemas **know nothing about torch or CUDA** — every
+heavy import is lazy — so they're tested anywhere with a `FakeBackend`. Only `SdxlBackend` and
+`docker build` need a GPU.
 
 ```
 app/
 ├── schemas.py    # Pydantic v2 request/response validation
-├── storage.py    # the only place that touches .png paths (traversal-safe job_id)
-├── loras.py      # LoraRegistry — scans /models/loras, resolves by name
+├── storage.py    # traversal-safe job_id → .png persistence
+├── loras.py      # discover / validate LoRAs from the mounted volume
 ├── pipeline.py   # Backend protocol · PipelineManager (mutex) · FakeBackend · SdxlBackend
 ├── api.py        # create_app factory + endpoints
-└── web/          # bilingual ES/EN frontend (no build step)
+└── web/          # bilingual (ES/EN) vanilla UI, no build step
 ```
 
 **Dev tests (no GPU, no torch):**
 
 ```bash
 cd sdxl-docker
-python -m venv .venv && source .venv/Scripts/activate
+python -m venv .venv && . .venv/Scripts/activate   # bash: source .venv/bin/activate
 pip install -r requirements-dev.txt
 pytest
 ```
 
 ---
 
-## Configuration
+## ⚙️ Configuration
+
+Images are written to `/outputs`; LoRAs are read from `/models/loras`. Mount both.
 
 | Env var | Default | Description |
 |---|---|---|
-| `OUTPUT_DIR`          | `/outputs`              | where PNG files are stored |
-| `LORA_DIR`            | `/models/loras`         | LoRA `.safetensors` scan directory |
-| `MODEL_DIR`           | `/opt/models/sdxl-base` | SDXL base model path |
-| `REFINER_DIR`         | `/opt/models/sdxl-refiner` | SDXL refiner model path |
-| `VAE_DIR`             | `/opt/models/sdxl-vae`  | VAE (fp16-fix) path |
-| `MAX_UPLOAD_MB`       | `10`                    | max input image size (MB) |
-| `MAX_BATCH`           | `4`                     | max images per request |
-| `DEFAULT_USE_REFINER` | `true`                  | whether the refiner runs by default |
+| `OUTPUT_DIR`          | `/outputs`       | where generated PNGs go |
+| `LORA_DIR`            | `/models/loras`  | mounted LoRA folder (hot-swappable) |
+| `MAX_UPLOAD_MB`       | `10`             | max img2img input size |
+| `MAX_BATCH`           | `4`              | max images per request |
+| `DEFAULT_USE_REFINER` | `true`           | refiner default when a request omits `use_refiner` |
+| `CUDA_VISIBLE_DEVICES`| —                | pin the GPU (or use `--gpus '"device=N"'`) |
 
 ---
 
-## License
+## 📄 License & credits
 
-This wrapper — API and Docker packaging — is part of the [KOLONEX](https://kolonex.net) toolchain,
-released under the MIT License. SDXL base and refiner weights are subject to the
-[CreativeML Open RAIL++-M License](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md).
+Released under the [MIT License](LICENSE), part of the [KOLONEX](https://kolonex.net) toolchain.
+Built on [Stable Diffusion XL](https://stability.ai/stable-image) via 🤗
+[diffusers](https://github.com/huggingface/diffusers); model weights remain subject to their own
+licenses. Pairs with [TRELLIS API](https://github.com/KOLONEX/trellis-api) for image→3D.
 
 <div align="center">
 
-### [Play KOLONEX — free, in early access →](https://kolonex.net)
+### 🎮 [Play KOLONEX — free, in early access →](https://kolonex.net)
 
 </div>
 
@@ -195,65 +181,112 @@ released under the MIT License. SDXL base and refiner weights are subject to the
 
 <div align="center">
 
-# SDXL API — Generá imágenes desde texto o imagen en GPU
+# 🎨 SDXL API — Convertí un prompt (o una imagen) en concept art para tu juego
 
-**Texto o imagen entran → PNG(s) salen.** Un servicio Docker autocontenido y acelerado por GPU que
-corre SDXL base + refiner + VAE offline, creado para alimentar el pipeline de assets de
-[**KOLONEX**](https://kolonex.net) — un juego de estrategia espacial 4X en tiempo real.
+**Entra un prompt → salen imágenes.** Un servicio Docker autocontenido y acelerado por GPU que corre
+**Stable Diffusion XL** en local: una API HTTP (txt2img + img2img, LoRAs en caliente, refiner opcional,
+quita-fondo de un click) más una UI web bilingüe — creado para alimentar el pipeline de arte de
+[**KOLONEX**](https://kolonex.net), un juego de estrategia espacial 4X en tiempo real.
 
-*[English ↑](#sdxl-api--generate-images-from-text-or-image-on-gpu) · Español*
+*[English ↑](#-sdxl-api--turn-a-prompt-or-an-image-into-game-ready-concept-art) · Español*
 
 </div>
 
-## Por qué existe
+## 🎮 Por qué existe
 
-[**KOLONEX**](https://kolonex.net) necesita un flujo constante de variantes de arte conceptual —
-skins de naves, estructuras planetarias, paneles de UI. La calidad y velocidad de SDXL lo hacen la
-herramienta ideal. Este servicio envuelve el **ensemble base + refiner** detrás de una API HTTP
-limpia, con soporte de LoRA para adaptación de estilo por request, empaquetado como una **imagen
-Docker que arranca 100% offline**.
+[**KOLONEX**](https://kolonex.net) es un **4X de estrategia espacial en tiempo real** que corre en el
+navegador: colonizá planetas 3D procedurales, desarrollá tu economía, investigá tecnologías, formá
+alianzas, peleá con flotas. Un universo así necesita un flujo constante de arte: naves, estructuras,
+props, edificios.
 
-## Inicio rápido
+Este servicio es el **frente del pipeline de assets**. Escribís un prompt (o soltás una imagen de
+referencia) y **Stable Diffusion XL** genera concept art en segundos. Pedile un sujeto limpio sobre
+fondo plano —o activá el **quita-fondo**— y el resultado entra directo a su hermano,
+[**TRELLIS**](https://github.com/KOLONEX/trellis-api), que convierte esa imagen 2D en un modelo 3D
+`.glb` texturizado. **Idea → imagen → modelo 3D**, todo self-hosted, todo offline.
+
+> **⭐ Dale una estrella si construís con esto — y vení a [jugar KOLONEX](https://kolonex.net) (gratis, acceso anticipado).**
+
+## ✨ Lo destacado
+
+- 🖼️ **txt2img + img2img** — generá desde un prompt, o reinterpretá/reestilizá una imagen (con denoise).
+- 🎛️ **LoRAs en caliente** — tirás `.safetensors` en una carpeta montada y aparecen al toque en la API y la UI, seleccionables con peso. Sin rebuild.
+- ✨ **Refiner de SDXL opcional** — segundo pase que pule el detalle fino, toggle por request (ON por defecto; OFF para velocidad o imágenes que van a TRELLIS).
+- 🪄 **Quita-fondo de un click** (rembg) — deja el sujeto limpio, listo para imagen→3D.
+- 📦 **Horneado y offline** — base + refiner + VAE de SDXL dentro de la imagen (fp16). Arranca sin internet.
+- 🌐 **UI web bilingüe** (ES/EN) con ayuda en cada parámetro — mismo look que el visor de TRELLIS.
+- 🎯 **Fijá la GPU** — corré en una placa específica (`--gpus '"device=1"'`) para convivir con TRELLIS en otra GPU.
+- 🧪 **Testeable sin GPU** — toda la API se cubre con tests que corren en cualquier laptop vía un `FakeBackend`.
+
+## 🚀 Inicio rápido
 
 ```bash
-# build (descarga + hornea base + refiner + VAE: ~13 GB de modelos, imagen ~18-22 GB)
+# build (hornea base + refiner + VAE — fp16, imagen ~19 GB)
 docker build -t sdxl-api ./sdxl-docker
 
-# correr en GPU 1, LoRAs desde una carpeta del host, outputs persistidos
-docker run --gpus '"device=1"' -p 5082:8000 \
+# correr en GPU 1, con carpeta de LoRAs + outputs persistentes
+docker run --gpus '"device=1"' -p 5083:8000 \
   -v "$PWD/loras:/models/loras" -v sdxl-outputs:/outputs sdxl-api
-# → http://localhost:5082
+# → abrí http://localhost:5083
 ```
 
-Con Docker Compose (GPU 1 preconfigurada):
+**Requisitos:** GPU NVIDIA con **~20 GB de VRAM libre** (base + refiner residentes), drivers compatibles
+con CUDA 12.1 y el [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
-```bash
-cd sdxl-docker
-docker compose up
-# → http://localhost:5082
+## 🧩 API
+
+| Método | Path | Descripción |
+|---|---|---|
+| `GET`    | `/`               | UI web bilingüe |
+| `GET`    | `/health`         | estado del modelo + VRAM libre |
+| `GET`    | `/loras`          | LoRAs detectados en la carpeta montada |
+| `POST`   | `/txt2img`        | params JSON → 1..N imágenes |
+| `POST`   | `/img2img`        | multipart `file` + params → 1..N imágenes |
+| `POST`   | `/img2img/json`   | `{ image_base64, ... }` → idem |
+| `GET`    | `/files/{id}.png` | descarga |
+| `DELETE` | `/files/{id}.png` | borra |
+
+**Params:** `prompt`, `negative_prompt`, `steps`, `cfg`, `sampler`, `width`, `height`, `seed`
+(0 = aleatorio), `batch` (≤ `MAX_BATCH`), `loras` (`[{name, weight}]`), `use_refiner`,
+`refiner_switch`, `remove_background`. `img2img` suma `denoise`.
+
+## 🧨 La historia del build
+
+Hornear ~13 GB de pesos durante `docker build` costó un poco:
+
+| La trampa | La solución |
+|-----------|-------------|
+| **La descarga de HuggingFace se colgaba** — 21 min sin salida en el archivo 2/57, dos veces seguidas. | **`hf_transfer`** (Rust, chunks paralelos, resumible) + reintentos → de *colgada* a *segundos*. |
+| **~Doble de datos.** `snapshot_download` baja el repo entero — pesos full-precision **y** fp16 — pero los pipelines cargan `variant="fp16"`. | Restringir base/refiner a `**/*.fp16.safetensors` + configs. Mitad de descarga; el VAE (sin sufijo fp16) se baja completo. |
+| **El pull de la imagen base fallaba con `401`** por credenciales viejas de Docker Hub. | `docker logout` antes de buildear. |
+| **base + refiner residentes ≈ 20 GB de VRAM** en una placa de 24 GB. | El refiner es un **toggle opcional por request** — OFF para velocidad o imágenes que van a TRELLIS. |
+
+## 🧠 Arquitectura
+
+SDXL queda aislado tras un `Backend` protocol (`load` / `txt2img` / `img2img`). Un `PipelineManager` lo
+envuelve con un `asyncio.Lock` (un job de GPU a la vez), timing y persistencia PNG. La API, storage,
+registro de LoRAs y schemas **no conocen torch ni CUDA** (todos los imports pesados son lazy), así que
+se testean en cualquier lado con un `FakeBackend`. Solo `SdxlBackend` y `docker build` requieren GPU.
+
+```
+app/
+├── schemas.py    # validación Pydantic v2
+├── storage.py    # job_id anti-traversal → persistencia .png
+├── loras.py      # descubre / valida LoRAs del volumen montado
+├── pipeline.py   # Backend protocol · PipelineManager (mutex) · FakeBackend · SdxlBackend
+├── api.py        # factory create_app + endpoints
+└── web/          # UI vanilla bilingüe (ES/EN), sin build
 ```
 
-## LoRAs — flujo de trabajo
+## 📄 Licencia y créditos
 
-1. Montá una carpeta del host como `/models/loras`.
-2. Copiá cualquier archivo `.safetensors` a esa carpeta — sin reiniciar; el registry rescannea en cada request.
-3. Verificá los LoRAs disponibles: `curl http://localhost:5082/loras`
-4. Usalo en una generación: `{"prompt":"...", "loras":[{"name":"mi-estilo","weight":0.8}]}`
-
-## Arquitectura
-
-SDXL queda aislado detrás de un `Backend` protocol. Un `PipelineManager` envuelve cualquier backend
-con un `asyncio.Lock` (un job de GPU a la vez), timing y persistencia. La API y `storage.py` **no
-conocen torch ni CUDA**, por eso se testean en cualquier máquina con `FakeBackend`.
-
-## Licencia
-
-Este wrapper es parte del toolchain de [KOLONEX](https://kolonex.net), publicado bajo MIT.
-Los pesos de SDXL base y refiner están sujetos a la
-[CreativeML Open RAIL++-M License](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md).
+Publicado bajo [Licencia MIT](LICENSE), parte del toolchain de [KOLONEX](https://kolonex.net).
+Construido sobre [Stable Diffusion XL](https://stability.ai/stable-image) vía 🤗
+[diffusers](https://github.com/huggingface/diffusers); los pesos siguen sujetos a sus licencias.
+Hace pareja con [TRELLIS API](https://github.com/KOLONEX/trellis-api) para imagen→3D.
 
 <div align="center">
 
-### [Jugá KOLONEX — gratis, en acceso anticipado →](https://kolonex.net)
+### 🎮 [Jugá KOLONEX — gratis, en acceso anticipado →](https://kolonex.net)
 
 </div>
