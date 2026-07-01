@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from PIL import Image, UnidentifiedImageError
 
+from app.history import History
 from app.loras import LoraRegistry
 from app.pipeline import PipelineManager
 from app.schemas import (GeneratedImage, GenerateResponse, HealthResponse,
@@ -29,7 +30,7 @@ def _gpu_stats():
 
 def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistry,
                web_dir: str, max_upload_mb: int = 10, max_batch: int = 4,
-               lifespan=None) -> FastAPI:
+               history: History = None, lifespan=None) -> FastAPI:
     app = FastAPI(title="SDXL API", version="1.0", lifespan=lifespan)
     index_path = Path(web_dir) / "index.html"
 
@@ -70,6 +71,13 @@ def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistr
         return JSONResponse(GenerateResponse(
             images=images, duration_ms=result.duration_ms, count=result.count).model_dump())
 
+    def _record(result, params, mode: str) -> None:
+        if history is None:
+            return
+        pdump = params.model_dump(exclude={"inline"})
+        for jid, seed in zip(result.job_ids, result.seeds):
+            history.add(jid, storage.url_for(jid), mode, seed, pdump)
+
     def _decode_image(data: bytes) -> Image.Image:
         if len(data) > max_upload_mb * 1024 * 1024:
             raise HTTPException(status_code=413, detail="image too large")
@@ -83,6 +91,7 @@ def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistr
     async def txt2img(params: Txt2ImgParams):
         _validate(params)
         result = await manager.generate_txt2img(params)
+        _record(result, params, "txt2img")
         return _respond(result, params.inline)
 
     @app.post("/img2img")
@@ -114,6 +123,7 @@ def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistr
             raise HTTPException(status_code=400, detail=str(e))
         _validate(params)
         result = await manager.generate_img2img(params, image)
+        _record(result, params, "img2img")
         return _respond(result, params.inline)
 
     @app.post("/img2img/json")
@@ -126,7 +136,23 @@ def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistr
         params = Img2ImgParams(**req.model_dump(exclude={"image_base64"}))
         _validate(params)
         result = await manager.generate_img2img(params, image)
+        _record(result, params, "img2img")
         return _respond(result, params.inline)
+
+    @app.get("/history")
+    async def get_history(limit: int = 100):
+        if history is None:
+            return JSONResponse({"items": []})
+        return JSONResponse({"items": history.list(limit)})
+
+    @app.delete("/history/{job_id}", status_code=204)
+    async def delete_history(job_id: str):
+        if not storage.is_valid_job_id(job_id):
+            raise HTTPException(status_code=400, detail="invalid job id")
+        storage.delete(job_id)
+        if history is not None:
+            history.delete(job_id)
+        return Response(status_code=204)
 
     @app.get("/files/{job_id}.png")
     async def get_file(job_id: str):
@@ -156,6 +182,7 @@ _VAE_DIR = os.environ.get("VAE_DIR", "/opt/models/sdxl-vae")
 _MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "10"))
 _MAX_BATCH = int(os.environ.get("MAX_BATCH", "4"))
 _DEFAULT_USE_REFINER = os.environ.get("DEFAULT_USE_REFINER", "true").lower() == "true"
+_HISTORY_DB = os.environ.get("HISTORY_DB", "/outputs/history.db")
 _WEB_DIR = str(Path(__file__).resolve().parent / "web")
 
 
@@ -165,6 +192,7 @@ def _build_default_app() -> FastAPI:
 
     storage = Storage(_OUTPUT_DIR)
     registry = LoraRegistry(_LORA_DIR)
+    history = History(_HISTORY_DB)
     backend = SdxlBackend(_MODEL_DIR, _REFINER_DIR, _VAE_DIR, _LORA_DIR, _DEFAULT_USE_REFINER)
     manager = PipelineManager(backend, storage)
 
@@ -174,7 +202,7 @@ def _build_default_app() -> FastAPI:
         yield
 
     return create_app(manager, storage, registry, _WEB_DIR, _MAX_UPLOAD_MB, _MAX_BATCH,
-                      lifespan=lifespan)
+                      history=history, lifespan=lifespan)
 
 
 app = _build_default_app()
