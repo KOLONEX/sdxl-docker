@@ -1,0 +1,12 @@
+# Runtime deps for the container. torch is installed separately in the Dockerfile
+# from the cu121 index, so it is NOT pinned here.
+diffusers==0.31.0
+transformers==4.46.2
+accelerate==1.1.1
+safetensors==0.4.5
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+pydantic==2.9.2
+pillow
+rembg==2.0.59
