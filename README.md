@@ -115,6 +115,26 @@ took some hardening:
 
 The payoff: a reproducible image that **boots 100 % offline** and generates in seconds.
 
+### 💾 Offline weight cache
+
+Once you have the weights, you never need to download them again. The bake step bind-mounts
+the project's `./models` folder and **prefers it over the network**:
+
+```bash
+# 1. build once (downloads the weights from HuggingFace)
+docker build -t sdxl-api ./sdxl-docker
+
+# 2. save them into ./models  (base + refiner + vae, ~14 GB)
+bash sdxl-docker/scripts/export-models.sh
+
+# 3. every later build copies from ./models — no internet, no HuggingFace
+docker build -t sdxl-api ./sdxl-docker
+```
+
+`scripts/download_models.py` copies from `./models` when the weights are there and falls back
+to HuggingFace when they aren't, so a plain `docker build` works either way. `./models` is
+git-ignored (~14 GB) — it's a local offline backup, not something you commit.
+
 ---
 
 ## 🧠 Architecture
@@ -157,6 +177,7 @@ Images are written to `/outputs`; LoRAs are read from `/models/loras`. Mount bot
 | `MAX_UPLOAD_MB`       | `10`             | max img2img input size |
 | `MAX_BATCH`           | `4`              | max images per request |
 | `DEFAULT_USE_REFINER` | `true`           | refiner default when a request omits `use_refiner` |
+| `LOCAL_CACHE`         | `/opt/models-cache` | build-time: local weight cache (`./models`) preferred over HuggingFace |
 | `CUDA_VISIBLE_DEVICES`| —                | pin the GPU (or use `--gpus '"device=N"'`) |
 
 ---
@@ -260,6 +281,26 @@ Hornear ~13 GB de pesos durante `docker build` costó un poco:
 | **~Doble de datos.** `snapshot_download` baja el repo entero — pesos full-precision **y** fp16 — pero los pipelines cargan `variant="fp16"`. | Restringir base/refiner a `**/*.fp16.safetensors` + configs. Mitad de descarga; el VAE (sin sufijo fp16) se baja completo. |
 | **El pull de la imagen base fallaba con `401`** por credenciales viejas de Docker Hub. | `docker logout` antes de buildear. |
 | **base + refiner residentes ≈ 20 GB de VRAM** en una placa de 24 GB. | El refiner es un **toggle opcional por request** — OFF para velocidad o imágenes que van a TRELLIS. |
+
+### 💾 Cache offline de pesos
+
+Una vez que tenés los pesos, no los descargás nunca más. El paso de horneado monta la carpeta
+`./models` del proyecto y **la prefiere por sobre la red**:
+
+```bash
+# 1. build una vez (baja los pesos de HuggingFace)
+docker build -t sdxl-api ./sdxl-docker
+
+# 2. guardalos en ./models  (base + refiner + vae, ~14 GB)
+bash sdxl-docker/scripts/export-models.sh
+
+# 3. cada build posterior copia desde ./models — sin internet, sin HuggingFace
+docker build -t sdxl-api ./sdxl-docker
+```
+
+`scripts/download_models.py` copia desde `./models` cuando los pesos están ahí y cae a
+HuggingFace cuando no, así que un `docker build` normal funciona en ambos casos. `./models` está
+git-ignoreada (~14 GB) — es un respaldo offline local, no algo que se commitee.
 
 ## 🧠 Arquitectura
 
