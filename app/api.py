@@ -146,3 +146,35 @@ def create_app(manager: PipelineManager, storage: Storage, registry: LoraRegistr
         return Response(status_code=204)
 
     return app
+
+
+_OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/outputs")
+_LORA_DIR = os.environ.get("LORA_DIR", "/models/loras")
+_MODEL_DIR = os.environ.get("MODEL_DIR", "/opt/models/sdxl-base")
+_REFINER_DIR = os.environ.get("REFINER_DIR", "/opt/models/sdxl-refiner")
+_VAE_DIR = os.environ.get("VAE_DIR", "/opt/models/sdxl-vae")
+_MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "10"))
+_MAX_BATCH = int(os.environ.get("MAX_BATCH", "4"))
+_DEFAULT_USE_REFINER = os.environ.get("DEFAULT_USE_REFINER", "true").lower() == "true"
+_WEB_DIR = str(Path(__file__).resolve().parent / "web")
+
+
+def _build_default_app() -> FastAPI:
+    from contextlib import asynccontextmanager
+    from app.pipeline import SdxlBackend
+
+    storage = Storage(_OUTPUT_DIR)
+    registry = LoraRegistry(_LORA_DIR)
+    backend = SdxlBackend(_MODEL_DIR, _REFINER_DIR, _VAE_DIR, _LORA_DIR, _DEFAULT_USE_REFINER)
+    manager = PipelineManager(backend, storage)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        await manager.load()
+        yield
+
+    return create_app(manager, storage, registry, _WEB_DIR, _MAX_UPLOAD_MB, _MAX_BATCH,
+                      lifespan=lifespan)
+
+
+app = _build_default_app()
