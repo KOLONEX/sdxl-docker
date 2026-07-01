@@ -80,7 +80,15 @@ def fetch(repo: str, dst: str, patterns) -> None:
 
 
 def main() -> int:
-    for repo, dst, patterns in TARGETS:
+    # Optional arg selects a single model (base|refiner|vae) so each can be baked into its
+    # own Docker layer — a single ~15 GB layer trips Docker Hub's "invalid content range";
+    # three smaller layers push cleanly. No arg bakes all (kept for local/dev use).
+    only = sys.argv[1] if len(sys.argv) > 1 else None
+    targets = [t for t in TARGETS if only is None or Path(t[1]).name.endswith(only)]
+    if only and not targets:
+        print(f"No target matches '{only}' (expected base|refiner|vae)", flush=True)
+        return 2
+    for repo, dst, patterns in targets:
         if from_local(dst):
             print(f"Using local cache for {repo} -> {dst}", flush=True)
             continue

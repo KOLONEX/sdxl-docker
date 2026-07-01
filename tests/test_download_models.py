@@ -35,3 +35,11 @@ def test_from_local_false_when_no_weights(tmp_path, monkeypatch):
     (cache / "sdxl-vae" / "config.json").write_text("{}")  # configs but no *.safetensors
     monkeypatch.setattr(dm, "LOCAL_CACHE", str(cache))
     assert dm.from_local(str(tmp_path / "opt" / "sdxl-vae")) is False
+
+
+def test_target_keys_map_one_to_one():
+    # The Dockerfile bakes each model in its own layer via `download_models.py <key>`;
+    # each key must select exactly one target.
+    for key in ("base", "refiner", "vae"):
+        matched = [t for t in dm.TARGETS if Path(t[1]).name.endswith(key)]
+        assert len(matched) == 1, (key, matched)

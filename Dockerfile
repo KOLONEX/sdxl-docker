@@ -33,9 +33,15 @@ RUN pip install --no-cache-dir -r /tmp/requirements-api.txt
 # weights (see scripts/export-models.sh) they are copied in offline; otherwise they are
 # downloaded from HuggingFace. The folder always exists (.gitkeep), so a plain
 # `docker build` works whether or not a local backup is present.
+# Each model is baked in its own RUN → its own layer: a single ~15 GB layer trips Docker
+# Hub's registry ("invalid content range"), while three smaller layers push cleanly.
 COPY scripts/download_models.py /opt/scripts/download_models.py
 RUN --mount=type=bind,source=models,target=/opt/models-cache \
-    python /opt/scripts/download_models.py
+    python /opt/scripts/download_models.py base
+RUN --mount=type=bind,source=models,target=/opt/models-cache \
+    python /opt/scripts/download_models.py refiner
+RUN --mount=type=bind,source=models,target=/opt/models-cache \
+    python /opt/scripts/download_models.py vae
 
 # 5. App code
 WORKDIR /app
