@@ -9,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MODEL_DIR=/opt/models/sdxl-base \
     REFINER_DIR=/opt/models/sdxl-refiner \
     VAE_DIR=/opt/models/sdxl-vae \
+    LOCAL_CACHE=/opt/models-cache \
     MAX_UPLOAD_MB=10 \
     MAX_BATCH=4 \
     DEFAULT_USE_REFINER=true
@@ -27,9 +28,14 @@ RUN pip install --no-cache-dir torch==2.4.0 torchvision==0.19.0 \
 COPY requirements-api.txt /tmp/requirements-api.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-api.txt
 
-# 4. Bake models (base + refiner + vae)
+# 4. Bake models (base + refiner + vae).
+# The project's ./models folder is bind-mounted at /opt/models-cache: if it holds the
+# weights (see scripts/export-models.sh) they are copied in offline; otherwise they are
+# downloaded from HuggingFace. The folder always exists (.gitkeep), so a plain
+# `docker build` works whether or not a local backup is present.
 COPY scripts/download_models.py /opt/scripts/download_models.py
-RUN python /opt/scripts/download_models.py
+RUN --mount=type=bind,source=models,target=/opt/models-cache \
+    python /opt/scripts/download_models.py
 
 # 5. App code
 WORKDIR /app

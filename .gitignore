@@ -1,0 +1,10 @@
+# Local SDXL weight backup — offline build cache, ~15 GB, too large for git.
+# The folder is kept (via .gitkeep) so `docker build`'s bind-mount always resolves.
+/models/*
+!/models/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
