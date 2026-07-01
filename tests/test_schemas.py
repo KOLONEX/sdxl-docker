@@ -6,7 +6,7 @@ from app.schemas import Txt2ImgParams, Img2ImgParams, LoraSpec, ALLOWED_SAMPLERS
 def test_defaults():
     p = Txt2ImgParams(prompt="a spaceship")
     assert p.steps == 30 and p.width == 1024 and p.batch == 1
-    assert p.use_refiner is True and p.sampler in ALLOWED_SAMPLERS
+    assert p.use_refiner is None and p.sampler in ALLOWED_SAMPLERS
 
 
 def test_rejects_unknown_sampler():

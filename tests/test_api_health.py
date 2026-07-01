@@ -12,7 +12,6 @@ def _client(tmp_path):
     storage = Storage(str(tmp_path / "out"))
     registry = LoraRegistry(str(tmp_path / "loras"))
     manager = PipelineManager(FakeBackend(), storage)
-    import asyncio; asyncio.get_event_loop_policy().new_event_loop()
     app = create_app(manager, storage, registry, WEB)
     return TestClient(app), manager
 

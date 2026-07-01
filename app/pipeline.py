@@ -185,7 +185,7 @@ class SdxlBackend:
         try:
             self._apply_loras(params)
             gens = self._generators(seeds)
-            use_ref = params.use_refiner
+            use_ref = self.default_use_refiner if params.use_refiner is None else params.use_refiner
             common = dict(prompt=[params.prompt] * len(seeds),
                           negative_prompt=[params.negative_prompt] * len(seeds),
                           num_inference_steps=params.steps, guidance_scale=params.cfg,

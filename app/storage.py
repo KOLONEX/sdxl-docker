@@ -8,7 +8,6 @@ _JOB_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 class Storage:
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def new_job_id(self) -> str:
         return uuid.uuid4().hex
@@ -27,6 +26,7 @@ class Storage:
         return self.path_for(job_id).is_file()
 
     def save_png(self, job_id: str, image) -> Path:
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         path = self.path_for(job_id)
         image.save(path, format="PNG")
         return path

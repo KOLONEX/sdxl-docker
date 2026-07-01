@@ -88,8 +88,11 @@ $("lang").onchange = e => applyLang(e.target.value);
 $("mode").onchange = e => { $("img2img-only").style.display = e.target.value==="img2img" ? "block":"none"; };
 
 async function loadLoras(){
-  const r = await fetch("/loras"); const {loras} = await r.json();
-  $("loras").innerHTML = loras.map(l=>`<option value="${l.name}">${l.name}</option>`).join("");
+  try {
+    const r = await fetch("/loras"); const {loras} = await r.json();
+    const sel = $("loras"); sel.innerHTML = "";
+    loras.forEach(l=>{ const o=document.createElement("option"); o.value=l.name; o.textContent=l.name; sel.appendChild(o); });
+  } catch(e){ console.warn("loras:", e); }
 }
 function selectedLoras(){
   const w = parseFloat($("loraweight").value);
@@ -113,6 +116,7 @@ $("go").onclick = async () => {
       const body = {...commonBody(), width:+$("width").value, height:+$("height").value};
       res = await fetch("/txt2img",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     } else {
+      if(!$("initimg").files[0]){ $("status").textContent="Select an image / Seleccioná una imagen"; $("go").disabled=false; return; }
       const fd = new FormData(); const b = commonBody();
       Object.entries(b).forEach(([k,v])=>{ if(k!=="loras") fd.append(k, v); });
       // loras go one-by-one is not supported by multipart here; send first selected for simplicity

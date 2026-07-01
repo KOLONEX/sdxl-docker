@@ -21,7 +21,7 @@ class Txt2ImgParams(BaseModel):
     batch: int = Field(default=1, ge=1, le=8)
     loras: List[LoraSpec] = Field(default_factory=list)
     vae: str = "fp16-fix"
-    use_refiner: bool = True
+    use_refiner: Optional[bool] = None
     refiner_switch: float = Field(default=0.8, ge=0.0, le=1.0)
     remove_background: bool = False
     inline: bool = False

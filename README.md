@@ -84,10 +84,10 @@ docker compose up
 | `width` | int | `1024` | 512–2048, multiple of 8 (txt2img only) |
 | `height` | int | `1024` | 512–2048, multiple of 8 (txt2img only) |
 | `seed` | int | `0` | 0 = random |
-| `batch` | int | `1` | 1–8, capped by `MAX_BATCH` |
+| `batch` | int | `1` | 1–8; requests above `MAX_BATCH` are rejected with HTTP 400 |
 | `loras` | list | `[]` | `[{"name": "my-lora", "weight": 0.8}]` |
-| `vae` | string | `fp16-fix` | |
-| `use_refiner` | bool | `true` | run the refiner pass |
+| `vae` | string | `fp16-fix` | VAE selection (txt2img only; not applied on img2img in v1) |
+| `use_refiner` | bool | `true` | run the refiner pass (txt2img only; not applied on img2img in v1) |
 | `refiner_switch` | float | `0.8` | base/refiner handoff (0–1) |
 | `remove_background` | bool | `false` | rembg post-process |
 | `inline` | bool | `false` | return PNG bytes directly (batch=1 only) |

@@ -11,7 +11,7 @@ from PIL import Image, UnidentifiedImageError
 from app.loras import LoraRegistry
 from app.pipeline import PipelineManager
 from app.schemas import (GeneratedImage, GenerateResponse, HealthResponse,
-                         Img2ImgJsonRequest, Img2ImgParams, LoraSpec,
+                         Img2ImgJsonRequest, Img2ImgParams,
                          LorasResponse, Txt2ImgParams)
 from app.storage import Storage
 
